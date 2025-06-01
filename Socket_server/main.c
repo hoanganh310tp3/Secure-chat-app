@@ -1,4 +1,5 @@
 #include "../SocketUtil/socketutil.h"
+#include "../MessageDB/messagedb.h"
 #include <pthread.h>
 #include <unistd.h>
 #include <stdbool.h>
@@ -25,6 +26,8 @@ void sendReceivedMessageToTheOtherClients(char *buffer, int socketFD);
 
 void receiveAndPrintIncomingDataOnSeperateThread(struct AcceptedSocket *pSocket);
 
+void sendChatHistoryToNewClient(int socketFD);
+
 struct AcceptedSocket acceptedSocket[10];
 int acceptedSocketsCount = 0;
 
@@ -34,9 +37,32 @@ void startAcceptingIncomingConnections(int serverSocketFD){
         struct AcceptedSocket *clientSocket = acceptIncomingConnection(serverSocketFD);
         acceptedSocket[acceptedSocketsCount++] = *clientSocket;
 
+        // Send chat history to new client
+        sendChatHistoryToNewClient(clientSocket->acceptedSocketFD);
+
         receiveAndPrintIncomingDataOnSeperateThread(clientSocket);
     }
 
+}
+
+void sendChatHistoryToNewClient(int socketFD) {
+    FILE *file = fopen(DB_FILENAME, "r");
+    if (file == NULL) {
+        return; // No history to send
+    }
+    
+    char line[MAX_MESSAGE_LENGTH + MAX_TIMESTAMP_LENGTH];
+    char historyHeader[] = "=== Chat History ===\n";
+    char historyFooter[] = "=== End of History ===\n";
+    
+    send(socketFD, historyHeader, strlen(historyHeader), 0);
+    
+    while (fgets(line, sizeof(line), file) != NULL) {
+        send(socketFD, line, strlen(line), 0);
+    }
+    
+    send(socketFD, historyFooter, strlen(historyFooter), 0);
+    fclose(file);
 }
 
 void* receiveAndPrintIncomingDataWrapper(void* arg) {
@@ -60,6 +86,9 @@ void receiveAndPrintIncomingData(int socketFD) {
         if(amountWasReceived > 0){
             buffer[amountWasReceived] = 0;
             printf("%s\n", buffer);
+
+            // Save message to database
+            saveMessage(buffer);
 
             sendReceivedMessageToTheOtherClients(buffer, socketFD);
         }
@@ -97,6 +126,16 @@ struct AcceptedSocket * acceptIncomingConnection(int serverSocketFD){
 }
 
 int main(){
+
+    // Initialize database
+    if (!initializeDatabase()) {
+        printf("Failed to initialize database. Exiting.\n");
+        return 1;
+    }
+
+    // Load and display chat history
+    printf("Server starting...\n");
+    loadChatHistory();
 
     int serverSocketFD = createTCPIpv4Socket();
 

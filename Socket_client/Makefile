@@ -1,5 +1,5 @@
 CC = gcc
-CFLAGS = -Wall -Wextra -std=c99
+CFLAGS = -Wall -Wextra -std=c99 -pthread
 SOCKETUTIL_DIR = ../SocketUtil
 
 TARGET = client
@@ -8,13 +8,20 @@ SOURCES = main.c $(SOCKETUTIL_DIR)/socketutil.c
 
 INCLUDES = -I$(SOCKETUTIL_DIR)
 
-$(TARGET): $(SOURCES)
+OBJECTS = $(SOURCES:.c=.o)
+
+all: $(TARGET)
+
+$(TARGET): $(OBJECTS)
 	$(CC) $(CFLAGS) $(INCLUDES) -o $@ $^
 
+%.o: %.c
+	$(CC) $(CFLAGS) -c $< -o $@
+
 clean:
-	rm -f $(TARGET)
+	rm -f $(OBJECTS) $(TARGET)
 
 run: $(TARGET)
 	./$(TARGET)
 
-.PHONY: clean run
+.PHONY: all clean run

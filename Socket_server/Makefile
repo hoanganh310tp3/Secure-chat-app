@@ -1,9 +1,10 @@
 CC = gcc
-CFLAGS = -Wall -Wextra -std=c99
+CFLAGS = -Wall -Wextra -std=c99 -pthread
 SOCKETUTIL_DIR = ../SocketUtil
+DBDIR = ../MessageDB
 TARGET = server
 
-SOURCES = main.c $(SOCKETUTIL_DIR)/socketutil.c
+SOURCES = $(SOCKETUTIL_DIR)/socketutil.c $(DBDIR)/messagedb.c main.c
 
 INCLUDES = -I$(SOCKETUTIL_DIR)
 
