@@ -5,6 +5,8 @@
 all: server client
 
 server:
+	$(MAKE) -C Auth
+	$(MAKE) -C MessageDB  
 	$(MAKE) -C Socket_server
 
 client:
@@ -14,7 +16,8 @@ clean:
 	$(MAKE) -C Socket_server clean
 	$(MAKE) -C Socket_client clean
 	$(MAKE) -C MessageDB clean
-	rm -f chat_history.txt
+	$(MAKE) -C Auth clean
+	rm -f chat_history.txt users.db sessions.db
 
 install: all
 	@echo "Build completed successfully!"
@@ -26,6 +29,6 @@ help:
 	@echo "  all     - Build both server and client"
 	@echo "  server  - Build server only"
 	@echo "  client  - Build client only"
-	@echo "  clean   - Clean all build files and chat history"
+	@echo "  clean   - Clean all build files and databases"
 	@echo "  install - Build and show usage instructions"
 	@echo "  help    - Show this help message" 

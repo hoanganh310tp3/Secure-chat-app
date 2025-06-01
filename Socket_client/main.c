@@ -9,6 +9,7 @@
 // Function declarations
 void startListeningAndPrintMessagesOnNewThread(int socketFD);
 void* listenAndPrint(void* arg);
+bool handleAuthentication(int socketFD);
 
 int main(){
    
@@ -20,43 +21,98 @@ int main(){
     int result = connect(socketFD, (struct sockaddr*)address, sizeof(*address));
     
     if(result == 0){
-        printf("connection is successful\n");
+        printf("Connection to server successful\n");
+    } else {
+        printf("Failed to connect to server\n");
+        return 1;
     }
 
-    char *name = NULL;
-    size_t namesize = 0;
-    printf("please enter your name?\n");
-    ssize_t nameCount = getline(&name, &namesize, stdin);
-    name[nameCount-1]=0;
+    // Handle authentication
+    if (!handleAuthentication(socketFD)) {
+        printf("Authentication failed. Disconnecting.\n");
+        close(socketFD);
+        return 1;
+    }
 
-    char *line = NULL;
-    size_t linesize = 0;
-    printf("type and we will send it to server\n");
+    printf("Type your messages (type 'exit' to quit):\n");
 
     startListeningAndPrintMessagesOnNewThread(socketFD);
 
-    char buffer[1024];
+    char *line = NULL;
+    size_t linesize = 0;
 
     while(true){
-
         ssize_t charCount = getline(&line, &linesize, stdin);
-        line[charCount-1]=0;
-        sprintf(buffer,"%s: %s", name, line);
-
-        if(charCount > 0){
+        if (charCount > 0) {
+            line[charCount-1] = 0; // Remove newline
+            
             if(strcmp(line, "exit") == 0){
                 break;
             }
-            ssize_t amountWasSent = send(socketFD, buffer, strlen(buffer), 0);
+            
+            ssize_t amountWasSent = send(socketFD, line, strlen(line), 0);
             if(amountWasSent < 0) {
                 printf("Failed to send message\n");
+                break;
             }
         }
     }
 
     close(socketFD);
+    free(line);
 
     return 0;
+}
+
+bool handleAuthentication(int socketFD) {
+    char buffer[1024];
+    char input[256];
+    
+    // Receive authentication menu
+    ssize_t received = recv(socketFD, buffer, sizeof(buffer) - 1, 0);
+    if (received <= 0) return false;
+    
+    buffer[received] = '\0';
+    printf("%s", buffer);
+    
+    // Get user choice
+    if (fgets(input, sizeof(input), stdin) == NULL) return false;
+    send(socketFD, input, strlen(input), 0);
+    
+    // Handle username prompt
+    received = recv(socketFD, buffer, sizeof(buffer) - 1, 0);
+    if (received <= 0) return false;
+    
+    buffer[received] = '\0';
+    printf("%s", buffer);
+    
+    if (fgets(input, sizeof(input), stdin) == NULL) return false;
+    send(socketFD, input, strlen(input), 0);
+    
+    // Handle password prompt
+    received = recv(socketFD, buffer, sizeof(buffer) - 1, 0);
+    if (received <= 0) return false;
+    
+    buffer[received] = '\0';
+    printf("%s", buffer);
+    
+    // Hide password input (simple version)
+    if (fgets(input, sizeof(input), stdin) == NULL) return false;
+    send(socketFD, input, strlen(input), 0);
+    
+    // Receive authentication result
+    received = recv(socketFD, buffer, sizeof(buffer) - 1, 0);
+    if (received <= 0) return false;
+    
+    buffer[received] = '\0';
+    printf("%s", buffer);
+    
+    // Check if authentication was successful
+    if (strstr(buffer, "successful") != NULL) {
+        return true;
+    }
+    
+    return false;
 }
 
 void startListeningAndPrintMessagesOnNewThread(int socketFD){
@@ -73,13 +129,14 @@ void* listenAndPrint(void* arg){
 
         if(amountWasReceived > 0){
             buffer[amountWasReceived] = 0;
-            printf("%s\n", buffer);
+            printf("%s", buffer);
+            fflush(stdout);
         }
         if(amountWasReceived == 0){
+            printf("Disconnected from server\n");
             break;
         }
     }
 
-    close(socketFD);
     return NULL;
 }
