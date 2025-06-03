@@ -8,13 +8,12 @@
 #include <string.h>
 #include <malloc.h>
 #include <stdbool.h>
-
-
+#include <openssl/ssl.h>
+#include <openssl/err.h>
 
 
 struct sockaddr_in* createIPv4Address(char *ip, int port);
 
 int createTCPIpv4Socket();
-
 
 #endif //SOCKETUTIL_SOCKETUTIL_H

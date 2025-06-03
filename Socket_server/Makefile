@@ -6,7 +6,7 @@ AUTHDIR = ../Auth
 SOURCES = $(SRCDIR)/socketutil.c $(DBDIR)/messagedb.c $(AUTHDIR)/auth.c main.c
 OBJECTS = $(SOURCES:.c=.o)
 TARGET = server
-LIBS = -lcrypt
+LIBS = -lcrypt -lssl -lcrypto  
 
 all: $(TARGET)
 

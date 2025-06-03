@@ -1,142 +1,148 @@
-#define _GNU_SOURCE  // Add this for getline function
+#define _GNU_SOURCE
 #include "../SocketUtil/socketutil.h"
 #include <stdbool.h>
 #include <pthread.h>
 #include <string.h>
 #include <unistd.h>
 #include <stdint.h>
+#include <openssl/ssl.h>
+#include <openssl/err.h>
 
-// Function declarations
-void startListeningAndPrintMessagesOnNewThread(int socketFD);
-void* listenAndPrint(void* arg);
-bool handleAuthentication(int socketFD);
+#define PORT 4443
 
-int main(){
-   
-    int socketFD = createTCPIpv4Socket();
-    
-    /* 127.0.0.1 is localhost address */
-    struct sockaddr_in *address = createIPv4Address("127.0.0.1", 2000);
-    
-    int result = connect(socketFD, (struct sockaddr*)address, sizeof(*address));
-    
-    if(result == 0){
-        printf("Connection to server successful\n");
-    } else {
-        printf("Failed to connect to server\n");
+void init_openssl() {
+    SSL_library_init();
+    SSL_load_error_strings();
+    OpenSSL_add_ssl_algorithms();
+}
+
+void cleanup_openssl() {
+    EVP_cleanup();
+}
+
+SSL_CTX *create_context() {
+    const SSL_METHOD *method = TLS_client_method();  
+    SSL_CTX *ctx = SSL_CTX_new(method);
+    if (!ctx) {
+        ERR_print_errors_fp(stderr);
+        exit(EXIT_FAILURE);
+    }
+    return ctx;
+}
+
+void* listenAndPrint(void* arg) {
+    SSL *ssl = (SSL*)arg;
+    char buffer[1024];
+
+    while (true) {
+        ssize_t received = SSL_read(ssl, buffer, sizeof(buffer) - 1);
+        if (received <= 0) {
+            printf("Disconnected from server.\n");
+            break;
+        }
+        buffer[received] = '\0';
+        printf("%s\n", buffer);
+        fflush(stdout);
+    }
+
+    return NULL;
+}
+
+bool handleAuthentication(SSL *ssl) {
+    char buffer[1024];
+    char input[256];
+
+    // Menu
+    ssize_t received = SSL_read(ssl, buffer, sizeof(buffer) - 1);
+    if (received <= 0) return false;
+    buffer[received] = '\0';
+    printf("%s", buffer);
+
+    // Nhập lựa chọn
+    if (fgets(input, sizeof(input), stdin) == NULL) return false;
+    SSL_write(ssl, input, strlen(input));
+
+    // Username
+    received = SSL_read(ssl, buffer, sizeof(buffer) - 1);
+    if (received <= 0) return false;
+    buffer[received] = '\0';
+    printf("%s", buffer);
+
+    if (fgets(input, sizeof(input), stdin) == NULL) return false;
+    SSL_write(ssl, input, strlen(input));
+
+    // Password
+    received = SSL_read(ssl, buffer, sizeof(buffer) - 1);
+    if (received <= 0) return false;
+    buffer[received] = '\0';
+    printf("%s", buffer);
+
+    if (fgets(input, sizeof(input), stdin) == NULL) return false;
+    SSL_write(ssl, input, strlen(input));
+
+    // Kết quả
+    received = SSL_read(ssl, buffer, sizeof(buffer) - 1);
+    if (received <= 0) return false;
+    buffer[received] = '\0';
+    printf("%s", buffer);
+
+    return strstr(buffer, "successful") != NULL;
+}
+
+int main() {
+    init_openssl();
+    SSL_CTX *ctx = create_context();
+
+    int sockfd = createTCPIpv4Socket();
+    struct sockaddr_in *addr = createIPv4Address("127.0.0.1", PORT);
+    if (connect(sockfd, (struct sockaddr*)addr, sizeof(*addr)) != 0) {
+        perror("connect");
         return 1;
     }
 
-    // Handle authentication
-    if (!handleAuthentication(socketFD)) {
-        printf("Authentication failed. Disconnecting.\n");
-        close(socketFD);
+    SSL *ssl = SSL_new(ctx);
+    SSL_set_fd(ssl, sockfd);
+    if (SSL_connect(ssl) <= 0) {
+        ERR_print_errors_fp(stderr);
         return 1;
     }
 
-    printf("Type your messages (type 'exit' to quit):\n");
+    printf("Connected to server with SSL.\n");
 
-    startListeningAndPrintMessagesOnNewThread(socketFD);
+    if (!handleAuthentication(ssl)) {
+        printf("Auth failed. Closing.\n");
+        SSL_shutdown(ssl);
+        SSL_free(ssl);
+        close(sockfd);
+        SSL_CTX_free(ctx);
+        return 1;
+    }
+
+    printf("Type message (type 'exit' to quit):\n");
+
+    pthread_t listener;
+    pthread_create(&listener, NULL, listenAndPrint, ssl);
+    pthread_detach(listener);
 
     char *line = NULL;
     size_t linesize = 0;
+    while (true) {
+        ssize_t count = getline(&line, &linesize, stdin);
+        if (count <= 0) break;
 
-    while(true){
-        ssize_t charCount = getline(&line, &linesize, stdin);
-        if (charCount > 0) {
-            line[charCount-1] = 0; // Remove newline
-            
-            if(strcmp(line, "exit") == 0){
-                break;
-            }
-            
-            ssize_t amountWasSent = send(socketFD, line, strlen(line), 0);
-            if(amountWasSent < 0) {
-                printf("Failed to send message\n");
-                break;
-            }
-        }
-    }
+        line[count - 1] = '\0';  // remove newline
+        if (strcmp(line, "exit") == 0) break;
 
-    close(socketFD);
-    free(line);
-
-    return 0;
-}
-
-bool handleAuthentication(int socketFD) {
-    char buffer[1024];
-    char input[256];
-    
-    // Receive authentication menu
-    ssize_t received = recv(socketFD, buffer, sizeof(buffer) - 1, 0);
-    if (received <= 0) return false;
-    
-    buffer[received] = '\0';
-    printf("%s", buffer);
-    
-    // Get user choice
-    if (fgets(input, sizeof(input), stdin) == NULL) return false;
-    send(socketFD, input, strlen(input), 0);
-    
-    // Handle username prompt
-    received = recv(socketFD, buffer, sizeof(buffer) - 1, 0);
-    if (received <= 0) return false;
-    
-    buffer[received] = '\0';
-    printf("%s", buffer);
-    
-    if (fgets(input, sizeof(input), stdin) == NULL) return false;
-    send(socketFD, input, strlen(input), 0);
-    
-    // Handle password prompt
-    received = recv(socketFD, buffer, sizeof(buffer) - 1, 0);
-    if (received <= 0) return false;
-    
-    buffer[received] = '\0';
-    printf("%s", buffer);
-    
-    // Hide password input (simple version)
-    if (fgets(input, sizeof(input), stdin) == NULL) return false;
-    send(socketFD, input, strlen(input), 0);
-    
-    // Receive authentication result
-    received = recv(socketFD, buffer, sizeof(buffer) - 1, 0);
-    if (received <= 0) return false;
-    
-    buffer[received] = '\0';
-    printf("%s", buffer);
-    
-    // Check if authentication was successful
-    if (strstr(buffer, "successful") != NULL) {
-        return true;
-    }
-    
-    return false;
-}
-
-void startListeningAndPrintMessagesOnNewThread(int socketFD){
-    pthread_t id;
-    pthread_create(&id, NULL, listenAndPrint, (void*)(intptr_t)socketFD);
-}
-
-void* listenAndPrint(void* arg){
-    int socketFD = (int)(intptr_t)arg;
-    char buffer[1024];
-    
-    while(true){
-        ssize_t amountWasReceived = recv(socketFD, buffer, 1024, 0);
-
-        if(amountWasReceived > 0){
-            buffer[amountWasReceived] = 0;
-            printf("%s", buffer);
-            fflush(stdout);
-        }
-        if(amountWasReceived == 0){
-            printf("Disconnected from server\n");
+        if (SSL_write(ssl, line, strlen(line)) <= 0) {
+            perror("send");
             break;
         }
     }
 
-    return NULL;
+    SSL_shutdown(ssl);
+    SSL_free(ssl);
+    close(sockfd);
+    SSL_CTX_free(ctx);
+    free(line);
+    return 0;
 }

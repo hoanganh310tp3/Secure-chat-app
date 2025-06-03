@@ -10,10 +10,12 @@ INCLUDES = -I$(SOCKETUTIL_DIR)
 
 OBJECTS = $(SOURCES:.c=.o)
 
+LIBS = -lssl -lcrypto
+
 all: $(TARGET)
 
 $(TARGET): $(OBJECTS)
-	$(CC) $(CFLAGS) $(INCLUDES) -o $@ $^
+	$(CC) $(CFLAGS) $(INCLUDES) -o $@ $^ $(LIBS)
 
 %.o: %.c
 	$(CC) $(CFLAGS) -c $< -o $@
