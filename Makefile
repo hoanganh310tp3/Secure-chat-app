@@ -19,6 +19,11 @@ clean:
 	$(MAKE) -C Auth clean
 	rm -f chat_history.txt users.db sessions.db
 
+initial install:
+	sudo apt update
+	sudo apt-get install build-essential libssl-dev
+	@echo "Initial dependencies installed. Now running 'make install' to build the project."
+
 install: all
 	@echo "Build completed successfully!"
 	@echo "To run server: cd Socket_server && ./server"

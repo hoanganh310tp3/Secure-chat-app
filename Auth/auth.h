@@ -15,7 +15,8 @@
 #define MAX_SALT_LENGTH 16
 #define USERS_DB_FILENAME "users.db"
 #define SESSIONS_DB_FILENAME "sessions.db"
-#define SESSION_TIMEOUT 3600 // 1 hour in seconds
+/* if we do not use the app, session ids will be expired in 1 hour*/
+#define SESSION_TIMEOUT 3600 
 
 typedef struct {
     char username[MAX_USERNAME_LENGTH];
