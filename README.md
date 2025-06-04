@@ -2,11 +2,12 @@
 
 ## Overview
 
-This is TCP server-client chat app project which comprises one server and many distinctive clients. A server is opend in local address and in port 4443 (The reason about define this port number is declared in Software design document). One or many clients are excecuted in the same local addess as server but they will use different random ephemeral ports. After connecting to server successfully, authentication stage is required. If you already have registered accounts, you can login and start chatting with other clients. The history of previous conversation will be displayed too. If not, registering is obligatory. You set the username and password for registration. Then, you have full authority to view chat history and send messages to other clients connected to server.
+This is a TCP server-client chat application project, comprising one server and multiple distinct clients. The server operates on a local address and uses port 4443 (the rationale for defining this specific port number is detailed in the Software Design Document). One or multiple clients can be executed on the same local address as the server, but they will utilize different random ephemeral ports. Upon successful connection to the server, an authentication stage is required. If you already have a registered account, you can log in and begin chatting with other clients. The history of previous conversations will also be displayed. If you do not have an account, registration is obligatory. You will set your username and password during the registration process. Subsequently, you will have full authority to view chat history and send messages to other clients connected to the server.
+
 
 ## Specification
 
-- This project is requied to be compatibilited with Ubuntu 22.04.
+- This project is designed to be compatible with Ubuntu 22.04.
 - The used programming language is C (GCC compiler).
 - Multiuser, multithread is required, which means one or more user can have access to use chat app. 
 - Authentication (registration, login) is required for user. The method of authentication is session-based. All sessions information is saved in sessions.db in folder server.
