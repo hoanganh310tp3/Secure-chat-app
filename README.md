@@ -64,7 +64,7 @@ make -C Socket_client
 
 ---
 
-## Chạy client
+## Run client
 
 1. Open new terminal.
 2. Run client:
